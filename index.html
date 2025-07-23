@@ -155,13 +155,11 @@
         
         <div class="footer">
             <div id="update-time">Последнее обновление: загружается...</div>
-            <div class="api-info">Данные предоставлены Twelvedata API</div>
+            <div class="api-info">Данные предоставлены Frankfurter.app</div>
         </div>
     </div>
 
     <script>
-        // API ключ Twelvedata
-        const API_KEY = 'c9b6ade6ab2a471fba5df4cdbd06fbb2';
         let rates = {};
         let lastUpdate = null;
 
@@ -184,10 +182,10 @@
         // Получение курса валюты через API
         async function getExchangeRate(from, to) {
             try {
-                const response = await fetch(`https://api.twelvedata.com/exchange_rate?symbol=${from}/${to}&apikey=${API_KEY}`);
+                const response = await fetch(`https://api.frankfurter.app/latest?from=${from}&to=${to}`);
                 if (!response.ok) throw new Error('Ошибка сети');
                 const data = await response.json();
-                return data.rate;
+                return data.rates[to];
             } catch (error) {
                 console.error(`Ошибка при получении курса ${from}/${to}:`, error);
                 throw error;
@@ -202,36 +200,15 @@
                 
                 // Получаем все курсы относительно USD
                 const newRates = { USD: 1 };
-                const currencyPairs = mainCurrencies.map(currency => `USD/${currency}`);
                 
-                // Получаем все курсы одним запросом (если API поддерживает)
-                const response = await fetch(`https://api.twelvedata.com/exchange_rate?symbol=${currencyPairs.join(',')}&apikey=${API_KEY}`);
+                // Получаем все курсы одним запросом
+                const response = await fetch(`https://api.frankfurter.app/latest?from=USD&to=${mainCurrencies.join(',')}`);
                 if (!response.ok) throw new Error('Ошибка сети');
                 const data = await response.json();
                 
-                // Обрабатываем полученные данные
-                if (data.code === 429) {
-                    throw new Error('Превышен лимит запросов к API');
-                }
-                
-                // Для каждого ответа (может быть несколько, если API поддерживает множественные запросы)
-                for (const [pair, rateData] of Object.entries(data)) {
-                    if (rateData.rate) {
-                        const currency = pair.split('/')[1];
-                        newRates[currency] = 1 / parseFloat(rateData.rate);
-                    }
-                }
-                
-                // Если какие-то курсы не загрузились, пробуем получить их по отдельности
-                for (const currency of mainCurrencies) {
-                    if (!newRates[currency]) {
-                        try {
-                            const rate = await getExchangeRate('USD', currency);
-                            newRates[currency] = 1 / parseFloat(rate);
-                        } catch (e) {
-                            console.error(`Не удалось получить курс для ${currency}`);
-                        }
-                    }
+                // Заполняем курсы
+                for (const [currency, rate] of Object.entries(data.rates)) {
+                    newRates[currency] = 1 / rate;
                 }
                 
                 rates = newRates;
