@@ -271,6 +271,93 @@
             }
         }
 
+        // Обновление деталей по валюте (изменение курса)
+        function updateCurrencyDetails() {
+            const detailsElement = document.getElementById('currency-details');
+            detailsElement.innerHTML = '';
+            
+            const fromCurrency = document.getElementById('from-currency').value;
+            const toCurrency = document.getElementById('to-currency').value;
+            
+            if (!rates[fromCurrency] || !rates[toCurrency]) return;
+            
+            const currentRate = fromCurrency === 'USD' 
+                ? rates[toCurrency]
+                : rates[toCurrency] / rates[fromCurrency];
+            
+            // Создаем элементы для отображения
+            const mainInfo = document.createElement('div');
+            mainInfo.textContent = `1 ${getCurrencyName(fromCurrency)} = ${currentRate.toFixed(2)} ${getCurrencyName(toCurrency)}`;
+            
+            detailsElement.appendChild(mainInfo);
+            
+            // Если есть предыдущие курсы, показываем изменение
+            if (previousRates[fromCurrency] && previousRates[toCurrency]) {
+                const previousRate = fromCurrency === 'USD' 
+                    ? previousRates[toCurrency]
+                    : previousRates[toCurrency] / previousRates[fromCurrency];
+                    
+                const change = currentRate - previousRate;
+                const changePercent = (change / previousRate) * 100;
+                
+                const changeElement = document.createElement('div');
+                changeElement.className = 'currency-change';
+                
+                const changeAmount = document.createElement('div');
+                changeAmount.textContent = `${change >= 0 ? '+' : ''}${change.toFixed(2)} ${getCurrencySymbol(toCurrency)}`;
+                changeAmount.className = change >= 0 ? 'positive' : 'negative';
+                
+                const changePercentage = document.createElement('div');
+                changePercentage.textContent = `${changePercent >= 0 ? '+' : ''}${changePercent.toFixed(2)}%`;
+                changePercentage.className = changePercent >= 0 ? 'positive' : 'negative';
+                
+                changeElement.appendChild(changeAmount);
+                changeElement.appendChild(changePercentage);
+                
+                detailsElement.appendChild(changeElement);
+                
+                const timeInfo = document.createElement('div');
+                timeInfo.textContent = 'за последнее обновление';
+                timeInfo.style.fontSize = '12px';
+                timeInfo.style.color = '#777';
+                timeInfo.style.marginTop = '5px';
+                
+                detailsElement.appendChild(timeInfo);
+            }
+        }
+
+        // Получение символа валюты
+        function getCurrencySymbol(currency) {
+            const symbols = {
+                'USD': '$',
+                'KZT': '₸',
+                'EUR': '€',
+                'RUB': '₽',
+                'UAH': '₴',
+                'CNY': '¥',
+                'TRY': '₺',
+                'UZS': 'сўм',
+                'AED': 'د.إ'
+            };
+            return symbols[currency] || currency;
+        }
+        
+        // Получение полного названия валюты
+        function getCurrencyName(currency) {
+            const names = {
+                'USD': 'Доллар США',
+                'KZT': 'Казахстанский тенге',
+                'EUR': 'Евро',
+                'RUB': 'Российский рубль',
+                'UAH': 'Украинская гривна',
+                'CNY': 'Китайский юань',
+                'TRY': 'Турецкая лира',
+                'UZS': 'Узбекский сум',
+                'AED': 'Дирхам ОАЭ'
+            };
+            return names[currency] || currency;
+        }
+
         // Обновление сетки валют
         function updateCurrencyGrid() {
             const grid = document.getElementById('currency-grid');
@@ -318,8 +405,16 @@
                 `1 ${fromCurrency} = ${formatNumber(exchangeRate)} ${toCurrency}`;
         }
         
-        // Остальные функции (updateCurrencyDetails, getCurrencySymbol, getCurrencyName, swapCurrencies)
-        // остаются без изменений как в предыдущем примере
+        function swapCurrencies() {
+            const fromCurrency = document.getElementById('from-currency');
+            const toCurrency = document.getElementById('to-currency');
+            
+            const temp = fromCurrency.value;
+            fromCurrency.value = toCurrency.value;
+            toCurrency.value = temp;
+            
+            convertCurrency();
+        }
         
         // Инициализация
         document.addEventListener('DOMContentLoaded', function() {
