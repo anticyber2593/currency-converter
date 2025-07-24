@@ -23,26 +23,25 @@
             width: 100%;
             max-width: 400px;
         }
-        .bank-selector {
+        .api-selector {
             display: flex;
             margin-bottom: 15px;
-            border-bottom: 1px solid #eee;
-            padding-bottom: 15px;
-            flex-wrap: wrap;
             gap: 5px;
         }
-        .bank-btn {
+        .api-btn {
             flex: 1;
             padding: 8px;
-            min-width: 100px;
             border: none;
-            border-radius: 5px;
-            background-color: #f0f0f0;
+            border-radius: 6px;
+            background-color: #e9ecef;
             cursor: pointer;
             font-size: 12px;
-            transition: all 0.3s;
+            transition: background-color 0.3s;
         }
-        .bank-btn.active {
+        .api-btn:hover {
+            background-color: #dee2e6;
+        }
+        .api-btn.active {
             background-color: #1a73e8;
             color: white;
         }
@@ -73,10 +72,11 @@
             padding: 15px;
             background-color: #f8f9fa;
             border-radius: 8px;
+            text-align: center;
         }
         .swap-btn {
-            background-color: #1a73e8;
-            color: white;
+            background-color: #FFD700;
+            color: #333;
             border: none;
             padding: 12px 20px;
             border-radius: 8px;
@@ -84,31 +84,43 @@
             font-size: 16px;
             width: 100%;
             margin: 15px 0;
+            font-weight: bold;
             transition: background-color 0.3s;
         }
         .swap-btn:hover {
-            background-color: #0d62c9;
+            background-color: #FFC600;
         }
-        .currency-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 15px;
+        .rates-container {
             margin-top: 25px;
         }
-        .currency-pair {
-            padding: 12px;
-            background-color: #f8f9fa;
-            border-radius: 8px;
+        .rate-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 0;
+            border-bottom: 1px solid #eee;
         }
-        .currency-name {
+        .rate-currency {
             font-weight: bold;
-            margin-bottom: 5px;
-            color: #5f6368;
+            width: 50px;
+        }
+        .rate-value {
+            flex: 1;
+            text-align: right;
+            padding-right: 10px;
+        }
+        .rate-change {
+            display: flex;
+            align-items: center;
+            color: #0d9e0d;
             font-size: 14px;
         }
-        .currency-value {
-            font-size: 16px;
-            font-weight: bold;
+        .rate-change.negative {
+            color: #ea4335;
+        }
+        .change-icon {
+            margin-right: 5px;
+            font-size: 12px;
         }
         .footer {
             margin-top: 20px;
@@ -132,15 +144,20 @@
             text-align: center;
             margin-top: 5px;
         }
+        .flag-icon {
+            width: 20px;
+            height: 15px;
+            margin-right: 5px;
+            vertical-align: middle;
+        }
     </style>
 </head>
 <body>
     <div class="converter-container">
-        <!-- Выбор Центробанка -->
-        <div class="bank-selector">
-            <button class="bank-btn active" onclick="selectBank('UZB')">ЦБ Узбекистана</button>
-            <button class="bank-btn" onclick="selectBank('RUS')">ЦБ России</button>
-            <button class="bank-btn" onclick="selectBank('KAZ')">ЦБ Казахстана</button>
+        <div class="api-selector">
+            <button class="api-btn active" onclick="switchApi('cbu')">ЦБ Узбекистана</button>
+            <button class="api-btn" onclick="switchApi('cbr')">ЦБ России</button>
+            <button class="api-btn" onclick="switchApi('nbk')">ЦБ Казахстана</button>
         </div>
         
         <div class="currency-input">
@@ -149,8 +166,10 @@
                 <option value="USD" selected>USD</option>
                 <option value="EUR">EUR</option>
                 <option value="RUB">RUB</option>
-                <option value="KZT">KZT</option>
-                <option value="UZS">UZS</option>
+                <option value="GBP">GBP</option>
+                <option value="JPY">JPY</option>
+                <option value="CHF">CHF</option>
+                <option value="CNY">CNY</option>
             </select>
         </div>
         
@@ -161,11 +180,14 @@
                 <option value="USD">USD</option>
                 <option value="EUR">EUR</option>
                 <option value="RUB">RUB</option>
-                <option value="KZT">KZT</option>
+                <option value="GBP">GBP</option>
+                <option value="JPY">JPY</option>
+                <option value="CHF">CHF</option>
+                <option value="CNY">CNY</option>
             </select>
         </div>
         
-        <button class="swap-btn" onclick="swapCurrencies()">Поменять валюты</button>
+        <button class="swap-btn" onclick="swapCurrencies()">ОБМЕН</button>
         
         <div class="currency-result" id="result-display">
             <div id="exchange-rate">Загрузка курсов...</div>
@@ -174,26 +196,53 @@
         <div id="loading" class="loading">Загрузка актуальных курсов...</div>
         <div id="error" class="error" style="display: none;"></div>
         
-        <div class="currency-grid" id="currency-grid">
-            <!-- Курсы будут загружены через API -->
+        <div class="rates-container" id="rates-container">
+            <!-- Курсы валют будут загружены здесь -->
         </div>
         
         <div class="footer">
             <div id="update-time">Последнее обновление: загружается...</div>
+            <div id="api-source">Источник: ЦБ Узбекистана</div>
             <div class="developer-info">Online currency system developed by Rustamov Shohboz</div>
         </div>
     </div>
 
     <script>
         let rates = {};
+        let lastRates = {};
         let lastUpdate = null;
-        let currentBank = 'UZB'; // По умолчанию ЦБ Узбекистана
+        let currentApi = 'cbu'; // По умолчанию API ЦБ Узбекистана
 
-        // API Центробанков
-        const BANK_API = {
-            'UZB': 'https://cbu.uz/ru/arkhiv-kursov-valyut/json/',
-            'RUS': 'https://www.cbr.ru/scripts/XML_daily.asp',
-            'KAZ': 'https://nationalbank.kz/rss/get_rates.cfm' // API ЦБ Казахстана
+        // Флаги стран для валют
+        const currencyFlags = {
+            'USD': '🇺🇸',
+            'EUR': '🇪🇺',
+            'RUB': '🇷🇺',
+            'UZS': '🇺🇿',
+            'GBP': '🇬🇧',
+            'JPY': '🇯🇵',
+            'CHF': '🇨🇭',
+            'CNY': '🇨🇳',
+            'KZT': '🇰🇿'
+        };
+
+        // API центральных банков
+        const APIS = {
+            'cbu': {
+                name: 'ЦБ Узбекистана',
+                url: 'https://cbu.uz/ru/arkhiv-kursov-valyut/json/',
+                baseCurrency: 'UZS'
+            },
+            'cbr': {
+                name: 'ЦБ России',
+                url: 'https://www.cbr.ru/scripts/XML_daily.asp',
+                baseCurrency: 'RUB'
+            },
+            'nbk': {
+                name: 'ЦБ Казахстана',
+                url: 'https://nationalbank.kz/rss/get_rates.cfm',
+                baseCurrency: 'KZT'
+            }
         };
 
         // Форматирование числа с разделителями
@@ -213,35 +262,64 @@
             return date.toLocaleDateString('ru-RU', options);
         }
 
-        // Выбор Центробанка
-        function selectBank(bank) {
-            currentBank = bank;
+        // Переключение API
+        function switchApi(apiKey) {
+            currentApi = apiKey;
             
             // Обновляем активную кнопку
-            document.querySelectorAll('.bank-btn').forEach(btn => {
+            document.querySelectorAll('.api-btn').forEach(btn => {
                 btn.classList.remove('active');
             });
             event.target.classList.add('active');
             
-            // Обновляем курсы
+            // Обновляем отображаемый источник
+            document.getElementById('api-source').textContent = `Источник: ${APIS[apiKey].name}`;
+            
+            // Загружаем новые курсы
             fetchExchangeRates();
         }
 
-        // Парсинг XML (для ЦБ России)
-        function parseXml(xml) {
+        // Парсинг XML ответа (для ЦБ России)
+        function parseXmlRates(xmlText) {
             const parser = new DOMParser();
-            const xmlDoc = parser.parseFromString(xml, "text/xml");
-            const valutes = xmlDoc.getElementsByTagName("Valute");
-            const result = {};
+            const xmlDoc = parser.parseFromString(xmlText, "text/xml");
+            const rates = {};
             
+            // Добавляем базовую валюту (RUB)
+            rates[APIS[currentApi].baseCurrency] = 1;
+            
+            const valutes = xmlDoc.getElementsByTagName("Valute");
             for (let valute of valutes) {
-                const code = valute.getElementsByTagName("CharCode")[0].childNodes[0].nodeValue;
-                const value = parseFloat(valute.getElementsByTagName("Value")[0].childNodes[0].nodeValue.replace(',', '.'));
-                const nominal = parseFloat(valute.getElementsByTagName("Nominal")[0].childNodes[0].nodeValue);
-                result[code] = value / nominal;
+                const charCode = valute.getElementsByTagName("CharCode")[0].textContent;
+                const value = parseFloat(valute.getElementsByTagName("Value")[0].textContent.replace(',', '.'));
+                const nominal = parseFloat(valute.getElementsByTagName("Nominal")[0].textContent);
+                rates[charCode] = value / nominal;
             }
             
-            return result;
+            return rates;
+        }
+
+        // Парсинг XML ответа (для ЦБ Казахстана)
+        function parseXmlRatesKZ(xmlText) {
+            const parser = new DOMParser();
+            const xmlDoc = parser.parseFromString(xmlText, "text/xml");
+            const rates = {};
+            
+            // Добавляем базовую валюту (KZT)
+            rates[APIS[currentApi].baseCurrency] = 1;
+            
+            const items = xmlDoc.getElementsByTagName("item");
+            for (let item of items) {
+                const title = item.getElementsByTagName("title")[0].textContent;
+                if (title.includes('/')) {
+                    const currency = title.split('/')[0].trim();
+                    const description = item.getElementsByTagName("description")[0].textContent;
+                    const value = parseFloat(description.replace(',', '.'));
+                    rates[currency] = value;
+                }
+            }
+            
+            return rates;
         }
 
         // Загрузка курсов валют
@@ -250,53 +328,49 @@
                 document.getElementById('loading').style.display = 'block';
                 document.getElementById('error').style.display = 'none';
                 
-                let response;
-                let data;
-                
-                switch(currentBank) {
-                    case 'UZB':
-                        response = await fetch(BANK_API.UZB);
-                        data = await response.json();
-                        rates = {
-                            'USD': parseFloat(data.find(item => item.Ccy === 'USD').Rate),
-                            'EUR': parseFloat(data.find(item => item.Ccy === 'EUR').Rate),
-                            'RUB': parseFloat(data.find(item => item.Ccy === 'RUB').Rate),
-                            'KZT': parseFloat(data.find(item => item.Ccy === 'KZT').Rate),
-                            'UZS': 1
-                        };
-                        break;
-                        
-                    case 'RUS':
-                        response = await fetch(BANK_API.RUS);
-                        const xml = await response.text();
-                        const parsed = parseXml(xml);
-                        rates = {
-                            'USD': parsed['USD'],
-                            'EUR': parsed['EUR'],
-                            'KZT': parsed['KZT'],
-                            'UZS': parsed['UZS'],
-                            'RUB': 1
-                        };
-                        break;
-                        
-                    case 'KAZ':
-                        response = await fetch(BANK_API.KAZ);
-                        data = await response.json();
-                        rates = {
-                            'USD': parseFloat(data.find(item => item.title === 'USD').description),
-                            'EUR': parseFloat(data.find(item => item.title === 'EUR').description),
-                            'RUB': parseFloat(data.find(item => item.title === 'RUB').description),
-                            'UZS': parseFloat(data.find(item => item.title === 'UZS').description),
-                            'KZT': 1
-                        };
-                        break;
+                // Сохраняем предыдущие курсы для сравнения
+                if (Object.keys(rates).length > 0) {
+                    lastRates = {...rates};
                 }
                 
+                let newRates = {};
+                
+                if (currentApi === 'cbu') {
+                    // API ЦБ Узбекистана (JSON)
+                    const response = await fetch(APIS[currentApi].url);
+                    const data = await response.json();
+                    
+                    // Получаем нужные валюты
+                    const currencies = ['USD', 'EUR', 'RUB', 'GBP', 'JPY', 'CHF', 'CNY'];
+                    currencies.forEach(currency => {
+                        const rateData = data.find(item => item.Ccy === currency);
+                        if (rateData) {
+                            newRates[currency] = parseFloat(rateData.Rate);
+                        }
+                    });
+                    
+                    // Добавляем UZS
+                    newRates['UZS'] = 1;
+                    
+                } else if (currentApi === 'cbr') {
+                    // API ЦБ России (XML)
+                    const response = await fetch(APIS[currentApi].url);
+                    const xmlText = await response.text();
+                    newRates = parseXmlRates(xmlText);
+                    
+                } else if (currentApi === 'nbk') {
+                    // API ЦБ Казахстана (XML)
+                    const response = await fetch(APIS[currentApi].url);
+                    const xmlText = await response.text();
+                    newRates = parseXmlRatesKZ(xmlText);
+                }
+                
+                rates = newRates;
                 lastUpdate = new Date();
                 document.getElementById('update-time').textContent = 
                     `Последнее обновление: ${formatDateTime(lastUpdate)}`;
                 
-                updateCurrencyGrid();
+                updateRatesDisplay();
                 convertCurrency();
                 
             } catch (error) {
@@ -309,24 +383,37 @@
             }
         }
 
-        // Обновление сетки валют
-        function updateCurrencyGrid() {
-            const grid = document.getElementById('currency-grid');
-            grid.innerHTML = '';
+        // Обновление отображения курсов
+        function updateRatesDisplay() {
+            const container = document.getElementById('rates-container');
+            container.innerHTML = '';
             
-            const baseCurrency = currentBank === 'UZB' ? 'UZS' : (currentBank === 'RUS' ? 'RUB' : 'KZT');
-            const currencies = ['USD', 'EUR', 'RUB', 'KZT', 'UZS'].filter(c => c !== baseCurrency);
+            const currencies = ['USD', 'EUR', 'RUB', 'GBP', 'JPY', 'CHF', 'CNY'];
             
             currencies.forEach(currency => {
                 if (rates[currency]) {
-                    const rate = (rates[baseCurrency] / rates[currency]).toFixed(4);
-                    const gridItem = document.createElement('div');
-                    gridItem.className = 'currency-pair';
-                    gridItem.innerHTML = `
-                        <div class="currency-name">1 ${currency} =</div>
-                        <div class="currency-value">${formatNumber(rate)} ${baseCurrency}</div>
+                    const rateItem = document.createElement('div');
+                    rateItem.className = 'rate-item';
+                    
+                    // Рассчитываем изменение курса
+                    let change = 0;
+                    let changeClass = 'positive';
+                    if (lastRates[currency]) {
+                        change = rates[currency] - lastRates[currency];
+                        if (change < 0) {
+                            changeClass = 'negative';
+                        }
+                    }
+                    
+                    rateItem.innerHTML = `
+                        <div class="rate-currency">${currencyFlags[currency] || ''} ${currency}</div>
+                        <div class="rate-value">${formatNumber(rates[currency].toFixed(2))}</div>
+                        <div class="rate-change ${changeClass}">
+                            <span class="change-icon">${change >= 0 ? '↑' : '↓'}</span>
+                            ${Math.abs(change).toFixed(2)}
+                        </div>
                     `;
-                    grid.appendChild(gridItem);
+                    container.appendChild(rateItem);
                 }
             });
         }
@@ -346,11 +433,18 @@
                 return;
             }
             
-            const result = amount * (rates[toCurrency] / rates[fromCurrency]);
+            // Конвертируем через базовую валюту API
+            const baseCurrency = APIS[currentApi].baseCurrency;
+            const amountInBase = fromCurrency === baseCurrency ? amount : amount * rates[fromCurrency];
+            const result = toCurrency === baseCurrency ? amountInBase : amountInBase / rates[toCurrency];
             
             document.getElementById('converted-amount').value = formatNumber(result.toFixed(2));
             
-            const exchangeRate = (rates[toCurrency] / rates[fromCurrency]).toFixed(4);
+            // Обновляем отображение курса
+            const exchangeRate = fromCurrency === baseCurrency 
+                ? (1 / rates[toCurrency]).toFixed(6)
+                : (rates[fromCurrency] / rates[toCurrency]).toFixed(6);
+                
             document.getElementById('exchange-rate').textContent = 
                 `1 ${fromCurrency} = ${formatNumber(exchangeRate)} ${toCurrency}`;
         }
@@ -388,6 +482,9 @@
             
             // Загружаем курсы по умолчанию
             fetchExchangeRates();
+            
+            // Обновляем курсы каждые 30 минут
+            setInterval(fetchExchangeRates, 30 * 60 * 1000);
         });
     </script>
 </body>
