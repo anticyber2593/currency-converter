@@ -172,7 +172,7 @@
         
         <div class="footer">
             <div id="update-time">Последнее обновление: загружается...</div>
-            <div class="api-info">Данные предоставлены Frankfurter.app</div>
+            <div class="api-info">Данные предоставлены ExchangeRate-API</div>
         </div>
     </div>
 
@@ -190,6 +190,9 @@
             { from: 'USD', to: 'RUB' },
             { from: 'USD', to: 'CNY' }
         ];
+
+        // API URL
+        const API_URL = 'https://open.er-api.com/v6/latest/USD';
 
         // Форматирование даты/времени
         function formatDateTime(date) {
@@ -215,11 +218,11 @@
                     previousRates = {...rates};
                 }
                 
-                const response = await fetch('https://api.frankfurter.app/latest?from=USD');
+                const response = await fetch(API_URL);
                 if (!response.ok) throw new Error('Ошибка сети');
                 
                 const data = await response.json();
-                if (!data.rates) throw new Error('Некорректные данные от API');
+                if (data.result !== 'success') throw new Error('Некорректные данные от API');
                 
                 // Сохраняем курсы
                 rates = {
@@ -227,12 +230,12 @@
                     ...data.rates
                 };
                 
-                // Добавляем RUB, так как его нет в API Frankfurter
+                // Добавляем RUB, так как его может не быть в API
                 if (!rates.RUB) {
-                    rates.RUB = 90.0; // Примерное значение, можно заменить на актуальное
+                    rates.RUB = 90.0; // Примерное значение
                 }
                 
-                lastUpdate = new Date();
+                lastUpdate = new Date(data.time_last_update_unix * 1000);
                 document.getElementById('update-time').textContent = 
                     `Последнее обновление: ${formatDateTime(lastUpdate)}`;
                 
@@ -245,6 +248,11 @@
                 document.getElementById('error').textContent = 
                     `Ошибка загрузки: ${error.message}. Попробуйте обновить страницу.`;
                 document.getElementById('error').style.display = 'block';
+                
+                // Используем последние доступные данные при ошибке
+                if (Object.keys(rates).length > 0) {
+                    convertCurrency();
+                }
             } finally {
                 document.getElementById('loading').style.display = 'none';
             }
@@ -301,7 +309,6 @@
             const detailsElement = document.getElementById('currency-details');
             detailsElement.innerHTML = '';
             
-            // Для примера будем показывать изменения для USD/KZT
             const fromCurrency = 'USD';
             const toCurrency = 'KZT';
             
@@ -392,8 +399,8 @@
         document.addEventListener('DOMContentLoaded', function() {
             fetchAllExchangeRates();
             
-            // Обновляем курсы каждые 10 минут
-            setInterval(fetchAllExchangeRates, 10 * 60 * 1000);
+            // Обновляем курсы каждые 30 минут (чтобы не превысить лимиты API)
+            setInterval(fetchAllExchangeRates, 30 * 60 * 1000);
         });
         
         // Слушатели изменений
